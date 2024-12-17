@@ -23,6 +23,10 @@
 @property (nonatomic, strong) NSArray *metadataObjectTypes;
 @property (nonatomic, strong) AVCaptureVideoPreviewLayer *videoPreviewLayer;
 @property (nonatomic, strong) dispatch_queue_t captureQueue;
+
+//增加上一次处理时间戳属性
+@property (nonatomic, assign) uint64_t lastProcessedTimestamp;
+
 @end
 
 @implementation SGScanCode
@@ -254,19 +258,39 @@
 
 #pragma mark - - AVCaptureMetadataOutputObjectsDelegate 的方法
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputMetadataObjects:(NSArray *)metadataObjects fromConnection:(AVCaptureConnection *)connection {
-    if (metadataObjects != nil && metadataObjects.count > 0) {
-        AVMetadataMachineReadableCodeObject *obj = metadataObjects[0];
-        NSString *resultString = obj.stringValue;
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (self.delegate && [self.delegate respondsToSelector:@selector(scanCode:result:)]) {
-                [self.delegate scanCode:self result:resultString];
+    // 获取当前的 CFAbsoluteTime
+    CFAbsoluteTime currentCFTime = CFAbsoluteTimeGetCurrent();
+    
+    // 将 CFAbsoluteTime 转换为微秒
+    uint64_t microseconds = (uint64_t)(currentCFTime * 1000000);
+    
+    // 打印当前时间的微秒级别
+    NSLog(@"当前时间的微秒: %llu", microseconds);
+    
+    // 计算时间差
+    uint64_t timeDifference = microseconds - self.lastProcessedTimestamp;
+    
+    // 设置防抖时间间隔，例如 500 毫秒（500000 微秒）
+    uint64_t debounceInterval = 500000;
+    
+    // 如果时间差大于防抖时间间隔，则处理元数据对象
+    if (timeDifference > debounceInterval) {
+        if (metadataObjects != nil && metadataObjects.count > 0) {
+            AVMetadataMachineReadableCodeObject *obj = metadataObjects[0];
+            NSString *resultString = obj.stringValue;
+            
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (self.delegate && [self.delegate respondsToSelector:@selector(scanCode:result:)]) {
+                    [self.delegate scanCode:self result:resultString];
+                }
+            });
+            
+            if ([SGQRCodeLog sharedQRCodeLog].log) {
+                NSLog(@"扫描的二维码数据：%@", obj);
             }
-        });
-
-        if ([SGQRCodeLog sharedQRCodeLog].log) {
-            NSLog(@"扫描的二维码数据：%@", obj);
         }
+        
+        self.lastProcessedTimestamp = microseconds; // 更新上一次处理时间戳
     }
 }
 
