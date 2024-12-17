@@ -66,7 +66,16 @@
     }
     
     /// 元数据输出对象的二维码识数据别类型
-    _metadataOutput.metadataObjectTypes = self.metadataObjectTypes;
+    NSArray *availableMetadataObjectTypes = _metadataOutput.availableMetadataObjectTypes;
+    
+    NSMutableSet *set1 = [NSMutableSet setWithArray:availableMetadataObjectTypes];
+    NSMutableSet *set2 = [NSMutableSet setWithArray:self.metadataObjectTypes];
+    
+    // 通过取交集操作，得到同时存在于两个数组中的元素集合
+    // 这里取交集，避免设备不支持数据类型，导致App闪退。
+    [set1 intersectSet:set2];
+    
+    _metadataOutput.metadataObjectTypes = [set1 allObjects];
 }
 
 - (void)setSampleBufferDelegate:(id<SGScanCodeSampleBufferDelegate>)sampleBufferDelegate {
